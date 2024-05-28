@@ -46,12 +46,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	conn, err := AcceptTCPConnection(listener)
-	if err != nil {
-		fmt.Println("Error accepting connection: ", err.Error())
-		os.Exit(1)
-	}
+	for {
+		conn, err := AcceptTCPConnection(listener)
+		if err != nil {
+			fmt.Println("Error accepting connection: ", err.Error())
+			os.Exit(1)
+		}
 
-	handleClient(conn)
+		go handleClient(conn)
+	}
 
 }
