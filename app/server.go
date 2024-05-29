@@ -5,11 +5,19 @@ import (
 	"io"
 	"net"
 	"os"
-	"strings"
 	// Uncomment this block to pass the first stage
 	// "net"
 	// "os"
 )
+
+func respond(conn *TCPConnection, message string) {
+	err := conn.Respond(message)
+
+	if err != nil {
+		fmt.Printf("Error responding to connection: %v\n", err)
+		os.Exit(1)
+	}
+}
 
 func handleClient(conn *TCPConnection) {
 	defer conn.Close()
@@ -17,21 +25,21 @@ func handleClient(conn *TCPConnection) {
 	for {
 		input, err := conn.Read()
 		if err != nil && err != io.EOF {
-			fmt.Println("Error reading input: ", err.Error())
+			fmt.Printf("Error reading input: %v\n", err)
 			os.Exit(1)
 		}
 
-		if len(input) == 0 {
-			return
+		parseInfo, err := parse(input)
+		if err != nil {
+			fmt.Printf("Error parsing input data: %v\n", err)
+			os.Exit(1)
 		}
 
-		if strings.Contains(input, "PING") {
-			err = conn.Respond("PONG")
-
-			if err != nil {
-				fmt.Println("Error responding to connection: ", err.Error())
-				os.Exit(1)
-			}
+		switch parseInfo.Command {
+		case "PING":
+			respond(conn, "PONG")
+		case "ECHO":
+			respond(conn, parseInfo.Args[0])
 		}
 	}
 }
@@ -49,7 +57,7 @@ func main() {
 	for {
 		conn, err := AcceptTCPConnection(listener)
 		if err != nil {
-			fmt.Println("Error accepting connection: ", err.Error())
+			fmt.Printf("Error accepting connection: %v\n", err)
 			os.Exit(1)
 		}
 
