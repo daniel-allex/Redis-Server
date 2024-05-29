@@ -13,6 +13,10 @@ type ParseInfo struct {
 func parse(data string) (ParseInfo, error) {
 	tokens := strings.Split(data, "\r\n")
 
+	if len(tokens) < 3 {
+		return ParseInfo{}, nil
+	}
+
 	numArgs, err := strconv.Atoi(tokens[0][1:])
 
 	if err != nil {
