@@ -1,34 +1,22 @@
 package main
 
 import (
-	"strconv"
 	"strings"
 )
 
 type ParseInfo struct {
 	Command string
-	Args    []string
+	Args    []RESPValue
 }
 
 func parse(data string) (ParseInfo, error) {
-	tokens := strings.Split(data, "\r\n")
-
-	if len(tokens) < 3 {
-		return ParseInfo{}, nil
-	}
-
-	numArgs, err := strconv.Atoi(tokens[0][1:])
-
+	val, err := RESPFromString(data)
 	if err != nil {
 		return ParseInfo{}, err
 	}
 
-	command := strings.ToUpper(tokens[2])
-	var args []string
+	args := val.Value.([]RESPValue)
 
-	for i := 0; i < numArgs-1; i += 1 {
-		args = append(args, tokens[4+2*i])
-	}
-
-	return ParseInfo{Command: command, Args: args}, nil
+	command := strings.ToUpper(args[0].Value.(string))
+	return ParseInfo{Command: command, Args: args[1:]}, nil
 }

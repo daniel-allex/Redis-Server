@@ -53,11 +53,6 @@ func (conn *TCPConnection) WriteLine(message string) error {
 	return err
 }
 
-func (conn *TCPConnection) Respond(message string) error {
-	err := conn.WriteLine("+" + message + "\r")
-	return err
-}
-
 func (conn *TCPConnection) Close() error {
 	return (*conn.conn).Close()
 }
