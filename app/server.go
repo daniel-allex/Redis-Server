@@ -38,8 +38,10 @@ func responseFromArgs(parseInfo ParseInfo) RESPValue {
 		value := parseInfo.Args[1]
 		setValue(key, value)
 		return RESPValue{Type: SimpleString, Value: "OK"}
-
 	}
+
+	err := RESPError{Error: "ERR", Message: "command not found"}
+	return RESPValue{Type: SimpleError, Value: err}
 }
 
 func handleClient(conn *TCPConnection) {
