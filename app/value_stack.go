@@ -10,6 +10,10 @@ type ValueStack struct {
 	stack []RESPValue
 }
 
+func NewValueStack() *ValueStack {
+	return &ValueStack{stack: []RESPValue{}}
+}
+
 func RESPFromToken(token string) (RESPValue, error) {
 	switch token[0] {
 	case '+':
@@ -18,7 +22,7 @@ func RESPFromToken(token string) (RESPValue, error) {
 		if token[1:] == "-1" {
 			return RESPValue{Type: NullBulkString, Value: ""}, nil
 		} else {
-			return RESPValue{Type: RawString, Value: ""}, nil
+			return RESPValue{Type: Invalid}, nil
 		}
 	case ':':
 		val, err := strconv.Atoi(token[1:])
@@ -33,6 +37,8 @@ func RESPFromToken(token string) (RESPValue, error) {
 		err, message, _ := strings.Cut(token[1:], " ")
 		val := RESPError{Error: err, Message: message}
 		return RESPValue{Type: SimpleError, Value: val}, nil
+	case '*':
+		return RESPValue{Type: Invalid}, nil
 	default:
 		return RESPValue{Type: RawString, Value: token}, nil
 	}
@@ -63,38 +69,54 @@ func (valueStack *ValueStack) groupToRESP(arrType RESPType, arr []RESPValue) RES
 	case BulkString:
 		return RESPValue{Type: BulkString, Value: arr[0].Value.(string)}
 	default:
-		return RESPValue{Type: -1}
+		return RESPValue{Type: Invalid}
 	}
 }
 
 func (valueStack *ValueStack) MergeN(n int, arrType RESPType) {
-	grouped := valueStack.stack[valueStack.Size()-n:]
+	vals := valueStack.stack[valueStack.Size()-n:]
+	grouped := make([]RESPValue, len(vals))
+	copy(grouped, vals)
 
 	valueStack.PopN(n)
-
 	val := valueStack.groupToRESP(arrType, grouped)
 
-	if val.Type != -1 {
+	if val.Type != Invalid {
 		valueStack.Push(val)
 	}
 }
 
-func (valueStack *ValueStack) ProcessHeaders(headers []RESPListHeader) {
+func (valueStack *ValueStack) MergeValuesFromHeaders(headers []RESPListHeader) {
 	for _, header := range headers {
-		valueStack.MergeN(header.Size, header.Type)
+		size := header.Size
+		if header.Type == BulkString {
+			size = 1
+		}
+		valueStack.MergeN(size, header.Type)
 	}
 }
 
-func (valueStack *ValueStack) ProcessToken(token string) (int, error) {
+func (valueStack *ValueStack) AddValueFromToken(token string) (int, error) {
 	val, err := RESPFromToken(token)
 	if err != nil {
 		return 0, err
 	}
 
-	if val.Type == RawString {
-		return len(val.Value.(string)), nil
-	} else {
-		valueStack.stack = append(valueStack.stack, val)
-		return 1, nil
+	if val.Type != Invalid {
+		valueStack.Push(val)
+
+		added := 1
+		if val.Type == RawString {
+			added += len(val.Value.(string))
+		}
+
+		return added, nil
 	}
+
+	return 0, nil
+}
+
+func (valueStack *ValueStack) ToString() string {
+	strs, _ := RESPValuesToStrings(valueStack.stack)
+	return fmt.Sprintf("{%s}", strings.Join(strs, ", "))
 }

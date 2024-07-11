@@ -3,10 +3,15 @@ package main
 import (
 	"fmt"
 	"strconv"
+	"strings"
 )
 
 type HeaderStack struct {
 	stack []RESPListHeader
+}
+
+func NewHeaderStack() *HeaderStack {
+	return &HeaderStack{stack: []RESPListHeader{}}
 }
 
 func listHeaderFromToken(token string) (RESPListHeader, error) {
@@ -34,9 +39,9 @@ func listHeaderFromToken(token string) (RESPListHeader, error) {
 func (headerStack *HeaderStack) Decrement(n int) []RESPListHeader {
 	var res []RESPListHeader
 	for !headerStack.Empty() && n > 0 {
-		removed := Min(headerStack.Size(), n)
+		removed := Min(headerStack.Last().Remaining, n)
 		n -= removed
-		headerStack.stack[headerStack.Size()-1].Remaining -= removed
+		headerStack.Last().Remaining -= removed
 
 		res = append(res, headerStack.RemoveEmpty()...)
 	}
@@ -46,14 +51,18 @@ func (headerStack *HeaderStack) Decrement(n int) []RESPListHeader {
 
 func (headerStack *HeaderStack) RemoveEmpty() []RESPListHeader {
 	var res []RESPListHeader
-	for headerStack.stack[headerStack.Size()-1].Remaining == 0 {
+	for !headerStack.Empty() && headerStack.Last().Remaining == 0 {
 		res = append(res, headerStack.Pop())
 	}
 
 	return res
 }
 
-func (headerStack *HeaderStack) ProcessToken(token string) error {
+func (headerStack *HeaderStack) Last() *RESPListHeader {
+	return &headerStack.stack[headerStack.Size()-1]
+}
+
+func (headerStack *HeaderStack) AddHeaderFromToken(token string) error {
 	header, err := listHeaderFromToken(token)
 	if err != nil {
 		return err
@@ -69,9 +78,9 @@ func (headerStack *HeaderStack) ProcessToken(token string) error {
 }
 
 func (headerStack *HeaderStack) Pop() RESPListHeader {
-	val := headerStack.stack[headerStack.Size()-1]
+	val := headerStack.Last()
 	headerStack.stack = headerStack.stack[:headerStack.Size()-1]
-	return val
+	return *val
 }
 
 func (headerStack *HeaderStack) Size() int {
@@ -80,4 +89,18 @@ func (headerStack *HeaderStack) Size() int {
 
 func (headerStack *HeaderStack) Empty() bool {
 	return headerStack.Size() == 0
+}
+
+func (headerStack *HeaderStack) ToString() string {
+	return headerListToString(headerStack.stack)
+}
+
+func headerListToString(headers []RESPListHeader) string {
+	res := make([]string, len(headers))
+
+	for i, elem := range headers {
+		res[i] = elem.ToString()
+	}
+
+	return fmt.Sprintf("{%s}", strings.Join(res, ", "))
 }

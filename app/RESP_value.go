@@ -25,7 +25,8 @@ type RESPListHeader struct {
 type RESPType int
 
 const (
-	RawString RESPType = iota
+	Invalid RESPType = iota
+	RawString
 	SimpleString
 	SimpleError
 	Integer
@@ -35,11 +36,20 @@ const (
 	NullBulkString
 )
 
+func (listHeader *RESPListHeader) ToString() string {
+	return fmt.Sprintf(
+		"{Type:%d, Size:%d, Remaining:%d}",
+		listHeader.Type,
+		listHeader.Size,
+		listHeader.Remaining,
+	)
+}
+
 func RESPValuesToStrings(list []RESPValue) ([]string, error) {
 	res := make([]string, len(list))
 
-	for i, elem := range list {
-		str, err := elem.ToString()
+	for i, _ := range list {
+		str, err := list[i].ToString()
 		if err != nil {
 			return []string{}, err
 		}
@@ -84,19 +94,27 @@ func (rv *RESPValue) ToString() (string, error) {
 
 func RESPFromString(str string) (RESPValue, error) {
 	tokens := strings.Split(str, "\r\n")
-	var valStack *ValueStack
-	var headerStack *HeaderStack
+
+	if len(tokens) == 0 {
+		return RESPValue{NullBulkString, nil}, nil
+	}
+
+	valStack := NewValueStack()
+	headerStack := NewHeaderStack()
 
 	for _, token := range tokens {
-		removed, err := valStack.ProcessToken(token)
+		if len(token) == 0 {
+			continue
+		}
+
+		valsAdded, err := valStack.AddValueFromToken(token)
 		if err != nil {
 			return RESPValue{}, err
 		}
 
-		headers := headerStack.Decrement(removed)
-		valStack.ProcessHeaders(headers)
-
-		err = headerStack.ProcessToken(token)
+		headersRemoved := headerStack.Decrement(valsAdded)
+		valStack.MergeValuesFromHeaders(headersRemoved)
+		err = headerStack.AddHeaderFromToken(token)
 		if err != nil {
 			return RESPValue{}, err
 		}

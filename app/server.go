@@ -5,6 +5,8 @@ import (
 	"io"
 	"net"
 	"os"
+	"strconv"
+	"strings"
 	// Uncomment this block to pass the first stage
 	// "net"
 	// "os"
@@ -24,19 +26,26 @@ func respondRESP(conn *TCPConnection, value RESPValue) {
 	}
 }
 
-func responseFromArgs(parseInfo ParseInfo) RESPValue {
+func responseFromArgs(parseInfo ParseInfo, database *Database) RESPValue {
 	switch parseInfo.Command {
 	case "PING":
 		return RESPValue{Type: SimpleString, Value: "PONG"}
 	case "ECHO":
-		return RESPValue{Type: BulkString, Value: parseInfo.Args[0]}
+		return RESPValue{Type: BulkString, Value: parseInfo.Args[0].Value.(string)}
 	case "GET":
 		key := parseInfo.Args[0].Value.(string)
-		return getValue(key)
+		return database.GetValue(key)
 	case "SET":
 		key := parseInfo.Args[0].Value.(string)
 		value := parseInfo.Args[1]
-		setValue(key, value)
+		expiry := -1
+
+		if len(parseInfo.Args) >= 4 &&
+			strings.ToUpper(parseInfo.Args[2].Value.(string)) == "PX" {
+			expiryStr := parseInfo.Args[3].Value.(string)
+			expiry, _ = strconv.Atoi(expiryStr)
+		}
+		database.SetValue(key, value, expiry)
 		return RESPValue{Type: SimpleString, Value: "OK"}
 	}
 
@@ -44,7 +53,7 @@ func responseFromArgs(parseInfo ParseInfo) RESPValue {
 	return RESPValue{Type: SimpleError, Value: err}
 }
 
-func handleClient(conn *TCPConnection) {
+func handleClient(conn *TCPConnection, database *Database) {
 	defer conn.Close()
 
 	for {
@@ -60,7 +69,8 @@ func handleClient(conn *TCPConnection) {
 			os.Exit(1)
 		}
 
-		respondRESP(conn, responseFromArgs(parseInfo))
+		response := responseFromArgs(parseInfo, database)
+		respondRESP(conn, response)
 	}
 }
 
@@ -74,6 +84,7 @@ func main() {
 		os.Exit(1)
 	}
 
+	database := NewDatabase()
 	for {
 		conn, err := AcceptTCPConnection(listener)
 		if err != nil {
@@ -81,7 +92,7 @@ func main() {
 			os.Exit(1)
 		}
 
-		go handleClient(conn)
+		go handleClient(conn, database)
 	}
 
 }
