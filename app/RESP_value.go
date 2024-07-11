@@ -95,6 +95,7 @@ func (rv *RESPValue) ToString() (string, error) {
 func RESPFromString(str string) (RESPValue, error) {
 	tokens := strings.Split(str, "\r\n")
 
+	fmt.Printf("tokens: %d\ninput: %s\n", len(tokens), str)
 	if len(tokens) == 0 {
 		return RESPValue{Array, []RESPValue{}}, nil
 	}
