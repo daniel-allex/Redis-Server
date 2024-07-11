@@ -62,7 +62,7 @@ func handleClient(conn *TCPConnection, database *Database) {
 			fmt.Printf("error reading input: %v\n", err)
 			os.Exit(1)
 		}
-
+		
 		parseInfo, err := parse(input)
 		if err != nil {
 			fmt.Printf("error parsing input data: %v\n", err)

@@ -32,7 +32,7 @@ func (conn *TCPConnection) ReadLine() (string, error) {
 }
 
 func (conn *TCPConnection) Read() (string, error) {
-	buf := make([]byte, 1024)
+	buf := make([]byte, 2045)
 	n, err := conn.io.Read(buf)
 
 	return string(buf[:n]), err

@@ -95,11 +95,6 @@ func (rv *RESPValue) ToString() (string, error) {
 func RESPFromString(str string) (RESPValue, error) {
 	tokens := strings.Split(str, "\r\n")
 
-	fmt.Printf("tokens: %d\ninput: %s\n", len(tokens), str)
-	if len(tokens) == 0 {
-		return RESPValue{Array, []RESPValue{}}, nil
-	}
-
 	valStack := NewValueStack()
 	headerStack := NewHeaderStack()
 
@@ -119,10 +114,6 @@ func RESPFromString(str string) (RESPValue, error) {
 		if err != nil {
 			return RESPValue{}, err
 		}
-	}
-
-	if valStack.Size() == 0 {
-		return RESPValue{Array, []RESPValue{}}, nil
 	}
 
 	return valStack.Pop(), nil
