@@ -96,7 +96,7 @@ func RESPFromString(str string) (RESPValue, error) {
 	tokens := strings.Split(str, "\r\n")
 
 	if len(tokens) == 0 {
-		return RESPValue{NullBulkString, nil}, nil
+		return RESPValue{Array, []RESPValue{}}, nil
 	}
 
 	valStack := NewValueStack()
@@ -118,6 +118,10 @@ func RESPFromString(str string) (RESPValue, error) {
 		if err != nil {
 			return RESPValue{}, err
 		}
+	}
+
+	if valStack.Size() == 0 {
+		return RESPValue{Array, []RESPValue{}}, nil
 	}
 
 	return valStack.Pop(), nil
