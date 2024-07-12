@@ -1,15 +1,13 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"io"
 	"net"
 	"os"
 	"strconv"
 	"strings"
-	// Uncomment this block to pass the first stage
-	// "net"
-	// "os"
 )
 
 func respondRESP(conn *TCPConnection, value RESPValue) {
@@ -62,7 +60,11 @@ func handleClient(conn *TCPConnection, database *Database) {
 			fmt.Printf("error reading input: %v\n", err)
 			os.Exit(1)
 		}
-		
+
+		if err == io.EOF {
+			return
+		}
+
 		parseInfo, err := parse(input)
 		if err != nil {
 			fmt.Printf("error parsing input data: %v\n", err)
@@ -78,9 +80,12 @@ func main() {
 	// You can use print statements as follows for debugging, they'll be visible when running tests.
 	fmt.Println("Logs from your program will appear here!")
 
-	listener, err := net.Listen("tcp", "0.0.0.0:6379")
+	port := flag.String("port", "6379", "port for redis server to use")
+	flag.Parse()
+
+	listener, err := net.Listen("tcp", "0.0.0.0:"+*port)
 	if err != nil {
-		fmt.Println("failed to bind to port 6379")
+		fmt.Println("failed to bind to port " + *port)
 		os.Exit(1)
 	}
 
