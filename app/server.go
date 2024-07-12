@@ -45,10 +45,21 @@ func responseFromArgs(parseInfo ParseInfo, database *Database) RESPValue {
 		}
 		database.SetValue(key, value, expiry)
 		return RESPValue{Type: SimpleString, Value: "OK"}
+	case "INFO":
+		category := parseInfo.Args[0].Value.(string)
+
+		switch category {
+		case "replication":
+			info := ReplicationInfo{Role: "master"}
+			return RESPValue{Type: BulkString, Value: info.ToString()}
+		}
+
+		return RESPValue{Type: SimpleError, Value: RESPError{Error: "info error", Message: "failed to specify a valid info error"}}
 	}
 
 	err := RESPError{Error: "ERR", Message: "command not found"}
 	return RESPValue{Type: SimpleError, Value: err}
+
 }
 
 func handleClient(conn *TCPConnection, database *Database) {
