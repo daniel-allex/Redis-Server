@@ -100,13 +100,15 @@ func main() {
 		os.Exit(1)
 	}
 
+	const ReplicationID = "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"
+
 	database := NewDatabase()
 	role := "master"
 	if *replicaOf != "" {
 		role = "slave"
 	}
 
-	replicationInfo := ReplicationInfo{Role: role}
+	replicationInfo := ReplicationInfo{Role: role, MasterReplid: ReplicationID, MasterReplOffset: 0}
 	serverInfo := ServerInfo{Replication: replicationInfo}
 	for {
 		conn, err := AcceptTCPConnection(listener)
