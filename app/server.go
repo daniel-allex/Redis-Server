@@ -110,6 +110,19 @@ func main() {
 
 	replicationInfo := ReplicationInfo{Role: role, MasterReplid: ReplicationID, MasterReplOffset: 0}
 	serverInfo := ServerInfo{Replication: replicationInfo}
+
+	if role == "slave" {
+		_, masterPort, _ := strings.Cut(*replicaOf, " ")
+
+		master, err := DialTCPConnection(":" + masterPort)
+		if err != nil {
+			fmt.Printf("error dialing connection: %v\n", err)
+			os.Exit(1)
+		}
+
+		respondRESP(master, RESPValue{Array, []RESPValue{RESPValue{BulkString, "PING"}}})
+	}
+
 	for {
 		conn, err := AcceptTCPConnection(listener)
 		if err != nil {

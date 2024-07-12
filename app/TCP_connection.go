@@ -27,6 +27,15 @@ func AcceptTCPConnection(listener net.Listener) (*TCPConnection, error) {
 	return NewTCPConnection(&conn), nil
 }
 
+func DialTCPConnection(address string) (*TCPConnection, error) {
+	conn, err := net.Dial("tcp", address)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewTCPConnection(&conn), nil
+}
+
 func (conn *TCPConnection) ReadLine() (string, error) {
 	return conn.io.ReadString('\n')
 }
