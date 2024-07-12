@@ -24,7 +24,7 @@ func respondRESP(conn *TCPConnection, value RESPValue) {
 	}
 }
 
-func responseFromArgs(parseInfo ParseInfo, database *Database) RESPValue {
+func responseFromArgs(parseInfo ParseInfo, database *Database, serverInfo ServerInfo) RESPValue {
 	switch parseInfo.Command {
 	case "PING":
 		return RESPValue{Type: SimpleString, Value: "PONG"}
@@ -50,8 +50,7 @@ func responseFromArgs(parseInfo ParseInfo, database *Database) RESPValue {
 
 		switch category {
 		case "replication":
-			info := ReplicationInfo{Role: "master"}
-			return RESPValue{Type: BulkString, Value: info.ToString()}
+			return RESPValue{Type: BulkString, Value: serverInfo.Replication.ToString()}
 		}
 
 		return RESPValue{Type: SimpleError, Value: RESPError{Error: "info error", Message: "failed to specify a valid info error"}}
@@ -62,7 +61,7 @@ func responseFromArgs(parseInfo ParseInfo, database *Database) RESPValue {
 
 }
 
-func handleClient(conn *TCPConnection, database *Database) {
+func handleClient(conn *TCPConnection, database *Database, serverInfo ServerInfo) {
 	defer conn.Close()
 
 	for {
@@ -82,7 +81,7 @@ func handleClient(conn *TCPConnection, database *Database) {
 			os.Exit(1)
 		}
 
-		response := responseFromArgs(parseInfo, database)
+		response := responseFromArgs(parseInfo, database, serverInfo)
 		respondRESP(conn, response)
 	}
 }
@@ -92,6 +91,7 @@ func main() {
 	fmt.Println("Logs from your program will appear here!")
 
 	port := flag.String("port", "6379", "port for redis server to use")
+	replicaOf := flag.String("replicaof", "", "port that this server is a replica of")
 	flag.Parse()
 
 	listener, err := net.Listen("tcp", "0.0.0.0:"+*port)
@@ -101,6 +101,13 @@ func main() {
 	}
 
 	database := NewDatabase()
+	role := "master"
+	if *replicaOf != "" {
+		role = "slave"
+	}
+
+	replicationInfo := ReplicationInfo{Role: role}
+	serverInfo := ServerInfo{Replication: replicationInfo}
 	for {
 		conn, err := AcceptTCPConnection(listener)
 		if err != nil {
@@ -108,7 +115,7 @@ func main() {
 			os.Exit(1)
 		}
 
-		go handleClient(conn, database)
+		go handleClient(conn, database, serverInfo)
 	}
 
 }
