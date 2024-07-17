@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 )
@@ -60,6 +59,17 @@ func RESPValuesToStrings(list []RESPValue) ([]string, error) {
 	return res, nil
 }
 
+func (rv *RESPValue) arrayToString() (string, error) {
+	val := rv.Value.([]RESPValue)
+	strVals, err := RESPValuesToStrings(val)
+	if err != nil {
+		return "", err
+	}
+
+	str := strings.Join(strVals, "")
+	return fmt.Sprintf("*%d\r\n%s", len(val), str), nil
+}
+
 func (rv *RESPValue) ToString() (string, error) {
 	switch rv.Type {
 	case RawString:
@@ -72,14 +82,7 @@ func (rv *RESPValue) ToString() (string, error) {
 	case Integer:
 		return fmt.Sprintf(":%d\r\n", rv.Value.(int)), nil
 	case Array:
-		val := rv.Value.([]RESPValue)
-		strVals, err := RESPValuesToStrings(val)
-		if err != nil {
-			return "", err
-		}
-
-		str := strings.Join(strVals, "\r\n")
-		return fmt.Sprintf("*%d\r\n%s", len(val), str), nil
+		return rv.arrayToString()
 	case Null:
 		return "_\r\n", nil
 	case NullBulkString:
@@ -88,33 +91,6 @@ func (rv *RESPValue) ToString() (string, error) {
 		val := rv.Value.(RESPError)
 		return fmt.Sprintf("-%s %s\r\n", val.Error, val.Message), nil
 	default:
-		return "", errors.New(fmt.Sprintf("failed to convert RESP to string: unknown type %d for value %s", rv.Type, rv.Value.(string)))
+		return "", fmt.Errorf("failed to convert RESP to string: unknown type %d for value %s", rv.Type, rv.Value.(string))
 	}
-}
-
-func RESPFromString(str string) (RESPValue, error) {
-	tokens := strings.Split(str, "\r\n")
-
-	valStack := NewValueStack()
-	headerStack := NewHeaderStack()
-
-	for _, token := range tokens {
-		if len(token) == 0 {
-			continue
-		}
-
-		valsAdded, err := valStack.AddValueFromToken(token)
-		if err != nil {
-			return RESPValue{}, err
-		}
-
-		headersRemoved := headerStack.Decrement(valsAdded)
-		valStack.MergeValuesFromHeaders(headersRemoved)
-		err = headerStack.AddHeaderFromToken(token)
-		if err != nil {
-			return RESPValue{}, err
-		}
-	}
-
-	return valStack.Pop(), nil
 }

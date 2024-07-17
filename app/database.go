@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"sync"
 	"time"
 )
@@ -56,7 +55,6 @@ func (database *Database) deleteIfExpired(key string) {
 	if ok {
 		empty := time.Time{}
 		if val.Expiry != empty && time.Now().After(val.Expiry) {
-			fmt.Printf("expired\n")
 			database.deleteKey(key)
 		}
 	}
