@@ -68,10 +68,13 @@ func (rc *RedisConnection) HandleRequests() error {
 			return err
 		}
 
-		response := rc.Server.ResponseFromArgs(parseInfo)
-		err = rc.respondRESP(response)
-		if err != nil {
-			return err
+		responses := rc.Server.ResponseFromArgs(parseInfo)
+
+		for _, r := range responses {
+			err = rc.respondRESP(r)
+			if err != nil {
+				return err
+			}
 		}
 	}
 }
