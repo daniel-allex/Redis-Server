@@ -8,7 +8,7 @@ import (
 type ReplicationInfo struct {
 	Role                       string
 	Port                       string
-	ConnectedSlaves            int
+	Replicants                 []*RedisConnection
 	MasterPort                 string
 	MasterReplid               string
 	MasterReplOffset           int
@@ -23,7 +23,7 @@ func (info *ReplicationInfo) ToString() string {
 	sb := strings.Builder{}
 	WriteLine(&sb, "# Replication")
 	WriteLine(&sb, fmt.Sprintf("role:%s\n", info.Role))
-	WriteLine(&sb, fmt.Sprintf("connected_slaves:%d\n", info.ConnectedSlaves))
+	WriteLine(&sb, fmt.Sprintf("connected_slaves:%d\n", len(info.Replicants)))
 	WriteLine(&sb, fmt.Sprintf("master_replid:%s\n", info.MasterReplid))
 	WriteLine(&sb, fmt.Sprintf("master_repl_offset:%d\n", info.MasterReplOffset))
 	WriteLine(&sb, fmt.Sprintf("second_repl_offset:%d\n", info.SecondReplOffset))
