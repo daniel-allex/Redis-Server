@@ -2,6 +2,8 @@ package main
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 )
 
 type RedisConnection struct {
@@ -74,42 +76,85 @@ func (rc *RedisConnection) HandleRequests() error {
 	}
 }
 
-func (rc *RedisConnection) handshakeStage(request RESPValue, expected string) error {
+func (rc *RedisConnection) handshakeStage(request RESPValue) (RESPValue, error) {
 	err := rc.respondRESP(request)
 	if err != nil {
-		return fmt.Errorf("failed to run handshake: %v", err)
+		return RESPValue{}, fmt.Errorf("failed to run handshake: %v", err)
 	}
 
-	response, err := rc.nextString()
+	response, err := rc.nextRESP()
 	if err != nil {
-		return fmt.Errorf("failed to run handshake: %v", err)
+		return RESPValue{}, fmt.Errorf("failed to run handshake: %v", err)
 	}
-	if response != expected {
-		return fmt.Errorf("expected response %s, got %s", expected, response)
+
+	return response, nil
+}
+
+type stage struct {
+	request  RESPValue
+	expected string
+}
+
+func (rc *RedisConnection) verifyResponses(stages []stage) error {
+	for i, stage := range stages {
+		val, err := rc.handshakeStage(stage.request)
+		if err != nil {
+			return fmt.Errorf("failed to handshake stage %d: %v", i, err)
+		}
+		if val.Value.(string) != stage.expected {
+			return fmt.Errorf("failed to handshake stage %d. Expected %s, received %s: %v", i, stage.expected, val.Value.(string), err)
+		}
 	}
 
 	return nil
 }
 
-func (rc *RedisConnection) Handshake() error {
-	request1 := RESPValue{Array, []RESPValue{{BulkString, "PING"}}}
-	request2 := RESPValue{Array, []RESPValue{{BulkString, "REPLCONF"}, {BulkString, "listening-port"}, {BulkString, rc.Server.ServerInfo.Replication.Port}}}
-	request3 := RESPValue{Array, []RESPValue{{BulkString, "REPLCONF"}, {BulkString, "capa"}, {BulkString, "psync2"}}}
+func (rc *RedisConnection) handshakePING() error {
+	request := RESPValue{Array, []RESPValue{{BulkString, "PING"}}}
+	return rc.verifyResponses([]stage{{request: request, expected: "PONG"}})
+}
 
-	var stages = []struct {
-		request  RESPValue
-		expected string
-	}{
-		{request1, "+PONG\r\n"},
-		{request2, "+OK\r\n"},
-		{request3, "+OK\r\n"},
+func (rc *RedisConnection) handshakeREPLCONF() error {
+	request1 := RESPValue{Array, []RESPValue{{BulkString, "REPLCONF"}, {BulkString, "listening-port"}, {BulkString, rc.Server.ServerInfo.Replication.Port}}}
+	request2 := RESPValue{Array, []RESPValue{{BulkString, "REPLCONF"}, {BulkString, "capa"}, {BulkString, "psync2"}}}
+
+	return rc.verifyResponses([]stage{{request: request1, expected: "OK"}, {request: request2, expected: "OK"}})
+}
+
+func (rc *RedisConnection) handshakePSYNC() error {
+	request := RESPValue{Array, []RESPValue{{BulkString, "PSYNC"}, {BulkString, "?"}, {BulkString, "-1"}}}
+	val, err := rc.handshakeStage(request)
+	if err != nil {
+		return err
 	}
 
-	for i, stage := range stages {
-		err := rc.handshakeStage(stage.request, stage.expected)
-		if err != nil {
-			return fmt.Errorf("failed to handshake stage %d: %v", i, err)
-		}
+	args := strings.Split(val.Value.(string), " ")
+	masterReplid := args[1]
+	masterReplOffset, err := strconv.Atoi(args[2])
+	if err != nil {
+		return err
+	}
+
+	rc.Server.ServerInfo.Replication.MasterReplid = masterReplid
+	rc.Server.ServerInfo.Replication.MasterReplOffset = masterReplOffset
+
+	return nil
+}
+
+func (rc *RedisConnection) Handshake() error {
+	err := rc.handshakePING()
+	if err != nil {
+		return err
+	}
+
+	err = rc.handshakeREPLCONF()
+	if err != nil {
+		return err
+	}
+
+	err = rc.handshakePSYNC()
+	if err != nil {
+		return err
 	}
 
 	return nil
