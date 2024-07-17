@@ -109,7 +109,15 @@ func (p *Parser) Parse(input string) (RESPValue, error) {
 }
 
 func (p *Parser) GetArgs(arr RESPValue) (ParseInfo, error) {
-	args := arr.Value.([]RESPValue)
+	args, ok := arr.Value.([]RESPValue)
+	if !ok {
+		str, err := arr.ToString()
+		if err != nil {
+			return ParseInfo{}, fmt.Errorf("RESPValue is not an array and could not convert to string: %v", err)
+		}
+		return ParseInfo{}, fmt.Errorf("RESPValue is not an array, value is %s", str)
+	}
+
 	command := strings.ToUpper(args[0].Value.(string))
 	return ParseInfo{Command: command, Args: args[1:]}, nil
 }
