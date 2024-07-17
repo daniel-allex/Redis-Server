@@ -72,11 +72,11 @@ func (rs *RedisServer) GetArgs(arr RESPValue) (ParseInfo, error) {
 	return rs.Parser.GetArgs(arr)
 }
 
-func responsePING() RESPValue {
+func (rs *RedisServer) responsePING(parseInfo ParseInfo) RESPValue {
 	return RESPValue{Type: SimpleString, Value: "PONG"}
 }
 
-func responseECHO(parseInfo ParseInfo) RESPValue {
+func (rs *RedisServer) responseECHO(parseInfo ParseInfo) RESPValue {
 	return RESPValue{Type: BulkString, Value: parseInfo.Args[0].Value.(string)}
 }
 
@@ -121,12 +121,16 @@ func (rs *RedisServer) responseREPLCONF(parseInfo ParseInfo) RESPValue {
 	return RESPValue{Type: SimpleString, Value: "OK"}
 }
 
+func (rs *RedisServer) responsePSYNC(parseInfo ParseInfo) RESPValue {
+	return RESPValue{Type: SimpleString, Value: fmt.Sprintf("FULLRESYNC %s 0", ReplicationID)}
+}
+
 func (rs *RedisServer) ResponseFromArgs(parseInfo ParseInfo) RESPValue {
 	switch parseInfo.Command {
 	case "PING":
-		return responsePING()
+		return rs.responsePING(parseInfo)
 	case "ECHO":
-		return responseECHO(parseInfo)
+		return rs.responseECHO(parseInfo)
 	case "GET":
 		return rs.responseGET(parseInfo)
 	case "SET":
@@ -135,6 +139,8 @@ func (rs *RedisServer) ResponseFromArgs(parseInfo ParseInfo) RESPValue {
 		return rs.responseINFO(parseInfo)
 	case "REPLCONF":
 		return rs.responseREPLCONF(parseInfo)
+	case "PSYNC":
+		return rs.responsePSYNC(parseInfo)
 	}
 
 	return RESPValue{Type: SimpleError, Value: RESPError{Error: "ERR", Message: "command not found"}}
