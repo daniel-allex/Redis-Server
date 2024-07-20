@@ -120,3 +120,15 @@ func (rs *RedisServer) GetValue(key string) RESPValue {
 func (rs *RedisServer) SetValue(key string, value RESPValue, expiry int) {
 	rs.Database.SetValue(key, value, expiry)
 }
+
+func (rs *RedisServer) ProcessBytes(resp RESPValue) error {
+	str, err := resp.ToString()
+	if err != nil {
+		return err
+	}
+
+	byteLength := len([]byte(str))
+	rs.ServerInfo.Replication.MasterReplOffset += byteLength
+
+	return nil
+}

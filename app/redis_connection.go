@@ -67,7 +67,12 @@ func (rc *RedisConnection) HandleRequests() error {
 
 func (rc *RedisConnection) HandleMaster() error {
 	for {
-		parseInfo, err := rc.Conn.NextArgs()
+		resp, err := rc.Conn.NextRESP()
+		if err != nil {
+			return err
+		}
+
+		parseInfo, err := rc.Conn.GetArgs(resp)
 		if err != nil {
 			return err
 		}
@@ -80,6 +85,11 @@ func (rc *RedisConnection) HandleMaster() error {
 			if err != nil {
 				return err
 			}
+		}
+
+		err = rc.Server.ProcessBytes(resp)
+		if err != nil {
+			return err
 		}
 	}
 }
@@ -131,7 +141,8 @@ func (rc *RedisConnection) responseINFO(parseInfo ParseInfo) []RESPValue {
 
 func (rc *RedisConnection) responseREPLCONF(parseInfo ParseInfo) []RESPValue {
 	if isAcknowledgement(parseInfo) {
-		res := []RESPValue{{Type: BulkString, Value: "REPLCONF"}, {Type: BulkString, Value: "ACK"}, {Type: BulkString, Value: "0"}}
+		bytesProcessed := strconv.Itoa(rc.Server.ServerInfo.Replication.MasterReplOffset)
+		res := []RESPValue{{Type: BulkString, Value: "REPLCONF"}, {Type: BulkString, Value: "ACK"}, {Type: BulkString, Value: bytesProcessed}}
 		return []RESPValue{{Type: Array, Value: res}}
 	}
 
