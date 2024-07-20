@@ -37,6 +37,12 @@ func (ts *TokenStream) Advance() {
 	}
 }
 
+func (ts *TokenStream) AdvanceCurr(i int) {
+	if !ts.isTerminated(ts.index) {
+		ts.tokens[ts.index] = ts.tokens[ts.index][i:]
+	}
+}
+
 func (ts *TokenStream) NextInput(tokens []string) {
 	ts.index = 0
 	ts.tokens = tokens

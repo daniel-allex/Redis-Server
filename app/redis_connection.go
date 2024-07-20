@@ -8,103 +8,44 @@ import (
 )
 
 type RedisConnection struct {
-	Conn   *TCPConnection
+	Conn   *RESPConnection
 	Server *RedisServer
 }
 
-func NewRedisConnection(conn *TCPConnection, server *RedisServer) *RedisConnection {
+func NewRedisConnection(conn *RESPConnection, server *RedisServer) *RedisConnection {
 	return &RedisConnection{Conn: conn, Server: server}
 }
 
-func (rc *RedisConnection) respondRESP(value RESPValue) error {
-	message, err := value.ToString()
-	if err != nil {
-		return fmt.Errorf("error responding to connection: %v", err)
+func createHandleReplicantFunc(resp RESPValue) ConnectionPredicate {
+	return func(replicant *RedisConnection) bool {
+		err := replicant.Conn.RespondRESP(resp)
+		return err == nil
 	}
-
-	err = rc.Conn.Write(message)
-	if err != nil {
-		return fmt.Errorf("error responding to connection: %v", err)
-	}
-
-	return nil
 }
 
-func (rc *RedisConnection) nextRESP() (RESPValue, error) {
-	input, err := rc.Conn.Read()
-	if err != nil {
-		return RESPValue{}, err
-	}
-
-	parseInfo, err := rc.Server.Parse(input)
-	if err != nil {
-		return RESPValue{}, err
-	}
-
-	return parseInfo, nil
-}
-
-func (rc *RedisConnection) nextString() (string, error) {
-	val, err := rc.nextRESP()
-	if err != nil {
-		return "", err
-	}
-
-	return val.ToString()
-}
-
-func (rc *RedisConnection) nextArgs() (ParseInfo, error) {
-	val, err := rc.nextRESP()
-	if err != nil {
-		return ParseInfo{}, err
-	}
-
-	return rc.Server.GetArgs(val)
-}
-
-func (rc *RedisConnection) respondRESPValues(responses []RESPValue) error {
-	for _, r := range responses {
-		err := rc.respondRESP(r)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (rc *RedisConnection) updateReplicants(resp RESPValue) error {
-	for _, replica := range rc.Server.ServerInfo.Replication.Replicants {
-		err := replica.respondRESP(resp)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
+func (rc *RedisConnection) updateReplicants(resp RESPValue) {
+	handleReplicant := createHandleReplicantFunc(resp)
+	rc.Server.ServerInfo.Replication.Replicants.Filter(handleReplicant)
 }
 
 func (rc *RedisConnection) HandleRequests() error {
 	for {
-		resp, err := rc.nextRESP()
+		resp, err := rc.Conn.NextRESP()
 		if err != nil {
 			return err
 		}
 
-		parseInfo, err := rc.Server.GetArgs(resp)
+		parseInfo, err := rc.Conn.GetArgs(resp)
 		if err != nil {
 			return err
 		}
 
 		if parseInfo.Command == "SET" {
-			err = rc.updateReplicants(resp)
-			if err != nil {
-				return err
-			}
+			rc.updateReplicants(resp)
 		}
 
 		responses := rc.ResponseFromArgs(parseInfo)
-		err = rc.respondRESPValues(responses)
+		err = rc.Conn.RespondRESPValues(responses)
 		if err != nil {
 			return err
 		}
@@ -113,10 +54,12 @@ func (rc *RedisConnection) HandleRequests() error {
 
 func (rc *RedisConnection) HandleMaster() error {
 	for {
-		parseInfo, err := rc.nextArgs()
+		parseInfo, err := rc.Conn.NextArgs()
 		if err != nil {
 			return err
 		}
+
+		fmt.Printf("HandleMaster: %s\n", parseInfo.Command)
 
 		_ = rc.ResponseFromArgs(parseInfo)
 	}
@@ -177,15 +120,14 @@ func emptyRDBRESP() RESPValue {
 	if err != nil {
 		return RESPValue{Type: SimpleError, Value: RESPError{Error: "ERR", Message: "failed to decode RDB file hex"}}
 	}
-	decodedStr := string(decoded)
-	return RESPValue{Type: RawString, Value: fmt.Sprintf("$%d\r\n%s", len(decodedStr), string(decodedStr))}
+	return RESPValue{Type: RDBFile, Value: string(decoded)}
 }
 
 func (rc *RedisConnection) responsePSYNC(parseInfo ParseInfo) []RESPValue {
 	fullResync := RESPValue{Type: SimpleString, Value: fmt.Sprintf("FULLRESYNC %s 0", ReplicationID)}
 	emptyRDB := emptyRDBRESP()
 
-	rc.Server.ServerInfo.Replication.Replicants = append(rc.Server.ServerInfo.Replication.Replicants, rc)
+	rc.Server.ServerInfo.Replication.Replicants.Add(rc)
 
 	return []RESPValue{fullResync, emptyRDB}
 }
@@ -212,12 +154,12 @@ func (rc *RedisConnection) ResponseFromArgs(parseInfo ParseInfo) []RESPValue {
 }
 
 func (rc *RedisConnection) handshakeStage(request RESPValue) (RESPValue, error) {
-	err := rc.respondRESP(request)
+	err := rc.Conn.RespondRESP(request)
 	if err != nil {
 		return RESPValue{}, fmt.Errorf("failed to run handshake: %v", err)
 	}
 
-	response, err := rc.nextRESP()
+	response, err := rc.Conn.NextRESP()
 	if err != nil {
 		return RESPValue{}, fmt.Errorf("failed to run handshake: %v", err)
 	}
@@ -263,15 +205,22 @@ func (rc *RedisConnection) handshakePSYNC() error {
 		return err
 	}
 
-	args := strings.Split(val.Value.(string), " ")
-	masterReplid := args[1]
-	masterReplOffset, err := strconv.Atoi(args[2])
+	_, args, _ := strings.Cut(val.Value.(string), " ")
+	masterReplid, args, _ := strings.Cut(args, " ")
+	masterReplOffset, _, _ := strings.Cut(args, " ")
+
+	offset, err := strconv.Atoi(masterReplOffset)
 	if err != nil {
 		return err
 	}
 
+	fmt.Printf("masterReplid: %s | offset: %d\n", masterReplid, offset)
+
 	rc.Server.ServerInfo.Replication.MasterReplid = masterReplid
-	rc.Server.ServerInfo.Replication.MasterReplOffset = masterReplOffset
+	rc.Server.ServerInfo.Replication.MasterReplOffset = offset
+
+	// handle RDB file
+	rc.Conn.NextRESP()
 
 	return nil
 }

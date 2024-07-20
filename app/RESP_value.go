@@ -33,6 +33,7 @@ const (
 	Array
 	Null
 	NullBulkString
+	RDBFile
 )
 
 func (listHeader *RESPListHeader) ToString() string {
@@ -90,6 +91,9 @@ func (rv *RESPValue) ToString() (string, error) {
 	case SimpleError:
 		val := rv.Value.(RESPError)
 		return fmt.Sprintf("-%s %s\r\n", val.Error, val.Message), nil
+	case RDBFile:
+		val := rv.Value.(string)
+		return fmt.Sprintf("$%d\r\n%s", len(val), val), nil
 	default:
 		return "", fmt.Errorf("failed to convert RESP to string: unknown type %d for value %s", rv.Type, rv.Value.(string))
 	}

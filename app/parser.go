@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"strconv"
 	"strings"
 )
@@ -24,16 +25,27 @@ func (p *Parser) parseSimpleString(token string) RESPValue {
 	return RESPValue{Type: SimpleString, Value: token[1:]}
 }
 
-func (p *Parser) parseBulkString(token string) RESPValue {
-	if token[1:] == "-1" {
+func (p *Parser) parseBulkString(token string) (RESPValue, error) {
+	size, err := strconv.Atoi(token[1:])
+	if err != nil {
+		return RESPValue{}, fmt.Errorf("failed to convert bulk string token %s into number: %v", token[1:], err)
+	}
+
+	if size == -1 {
 		p.ts.Advance()
-		return RESPValue{Type: NullBulkString, Value: nil}
+		return RESPValue{Type: NullBulkString, Value: nil}, nil
 	}
 
 	p.ts.Advance()
-	str := p.ts.Curr()
-	p.ts.Advance()
-	return RESPValue{Type: BulkString, Value: str}
+	str := p.ts.Curr()[:size]
+
+	if len(p.ts.Curr()) > size {
+		p.ts.AdvanceCurr(size)
+	} else {
+		p.ts.Advance()
+	}
+
+	return RESPValue{Type: BulkString, Value: str}, nil
 }
 
 func (p *Parser) parseInteger(token string) (RESPValue, error) {
@@ -78,17 +90,20 @@ func (p *Parser) parseSimpleError(token string) RESPValue {
 }
 
 func (p *Parser) parseExpression() (RESPValue, error) {
-	token := p.ts.Curr()
+	for p.ts.Curr() == "" {
+		p.ts.Advance()
+	}
 
+	token := p.ts.Curr()
 	if token == EOFToken {
-		return RESPValue{}, fmt.Errorf("cannot parse EOF Token")
+		return RESPValue{}, io.EOF
 	}
 
 	switch token[0] {
 	case '+':
 		return p.parseSimpleString(token), nil
 	case '$':
-		return p.parseBulkString(token), nil
+		return p.parseBulkString(token)
 	case ':':
 		return p.parseInteger(token)
 	case '*':
@@ -102,10 +117,13 @@ func (p *Parser) parseExpression() (RESPValue, error) {
 	}
 }
 
-func (p *Parser) Parse(input string) (RESPValue, error) {
-	p.ts.NextInput(strings.Split(input, "\r\n"))
-
+func (p *Parser) ParseNext() (RESPValue, error) {
 	return p.parseExpression()
+}
+
+func (p *Parser) ParseInput(input string) (RESPValue, error) {
+	p.ts.NextInput(strings.Split(input, "\r\n"))
+	return p.ParseNext()
 }
 
 func (p *Parser) GetArgs(arr RESPValue) (ParseInfo, error) {
