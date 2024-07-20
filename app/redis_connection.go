@@ -167,6 +167,12 @@ func (rc *RedisConnection) responsePSYNC(parseInfo ParseInfo) []RESPValue {
 	return []RESPValue{fullResync, emptyRDB}
 }
 
+func (rc *RedisConnection) responseWAIT(parseInfo ParseInfo) []RESPValue {
+	// replicants, timeout := parseInfo.Args[0].Value.(string), parseInfo.Args[1].Value.(string)
+
+	return []RESPValue{{Type: Integer, Value: 0}}
+}
+
 func (rc *RedisConnection) ResponseFromArgs(parseInfo ParseInfo) []RESPValue {
 	switch parseInfo.Command {
 	case "PING":
@@ -183,6 +189,8 @@ func (rc *RedisConnection) ResponseFromArgs(parseInfo ParseInfo) []RESPValue {
 		return rc.responseREPLCONF(parseInfo)
 	case "PSYNC":
 		return rc.responsePSYNC(parseInfo)
+	case "WAIT":
+		return rc.responseWAIT(parseInfo)
 	}
 
 	return []RESPValue{{Type: SimpleError, Value: RESPError{Error: "ERR", Message: "command not found"}}}
