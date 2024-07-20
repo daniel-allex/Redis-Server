@@ -28,6 +28,19 @@ func (rc *RedisConnection) updateReplicants(resp RESPValue) {
 	rc.Server.ServerInfo.Replication.Replicants.Filter(handleReplicant)
 }
 
+func isWriteCommand(parseInfo ParseInfo) bool {
+	return parseInfo.Command == "SET"
+}
+
+func isAcknowledgement(parseInfo ParseInfo) bool {
+	if parseInfo.Command == "REPLCONF" && len(parseInfo.Args) > 0 {
+		arg, ok := parseInfo.Args[0].Value.(string)
+		return ok && arg == "GETACK"
+	}
+
+	return false
+}
+
 func (rc *RedisConnection) HandleRequests() error {
 	for {
 		resp, err := rc.Conn.NextRESP()
@@ -40,7 +53,7 @@ func (rc *RedisConnection) HandleRequests() error {
 			return err
 		}
 
-		if parseInfo.Command == "SET" {
+		if isWriteCommand(parseInfo) {
 			rc.updateReplicants(resp)
 		}
 
@@ -61,7 +74,13 @@ func (rc *RedisConnection) HandleMaster() error {
 
 		fmt.Printf("HandleMaster: %s\n", parseInfo.Command)
 
-		_ = rc.ResponseFromArgs(parseInfo)
+		vals := rc.ResponseFromArgs(parseInfo)
+		if isAcknowledgement(parseInfo) {
+			err := rc.Conn.RespondRESPValues(vals)
+			if err != nil {
+				return err
+			}
+		}
 	}
 }
 
@@ -107,10 +126,15 @@ func (rc *RedisConnection) responseINFO(parseInfo ParseInfo) []RESPValue {
 		return []RESPValue{{Type: BulkString, Value: rc.Server.ServerInfo.Replication.ToString()}}
 	}
 
-	return []RESPValue{{Type: SimpleError, Value: RESPError{Error: "info error", Message: "failed to specify a valid info error"}}}
+	return []RESPValue{{Type: SimpleError, Value: RESPError{Error: "ERR", Message: "failed to specify a valid info error"}}}
 }
 
 func (rc *RedisConnection) responseREPLCONF(parseInfo ParseInfo) []RESPValue {
+	if isAcknowledgement(parseInfo) {
+		res := []RESPValue{{Type: BulkString, Value: "REPLCONF"}, {Type: BulkString, Value: "ACK"}, {Type: BulkString, Value: "0"}}
+		return []RESPValue{{Type: Array, Value: res}}
+	}
+
 	return []RESPValue{{Type: SimpleString, Value: "OK"}}
 }
 
