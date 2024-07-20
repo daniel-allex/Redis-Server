@@ -170,7 +170,7 @@ func (rc *RedisConnection) responsePSYNC(parseInfo ParseInfo) []RESPValue {
 func (rc *RedisConnection) responseWAIT(parseInfo ParseInfo) []RESPValue {
 	// replicants, timeout := parseInfo.Args[0].Value.(string), parseInfo.Args[1].Value.(string)
 
-	return []RESPValue{{Type: Integer, Value: 0}}
+	return []RESPValue{{Type: Integer, Value: rc.Server.ServerInfo.Replication.Replicants.Size()}}
 }
 
 func (rc *RedisConnection) ResponseFromArgs(parseInfo ParseInfo) []RESPValue {
