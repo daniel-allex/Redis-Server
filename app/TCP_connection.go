@@ -42,7 +42,7 @@ func (conn *TCPConnection) ReadLine() (string, error) {
 }
 
 func (conn *TCPConnection) Read(ctx context.Context) (string, error) {
-	buf := make([]byte, 120000)
+	buf := make([]byte, 1024)
 	n, err := conn.io.Read(buf)
 
 	return string(buf[:n]), err
