@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 )
@@ -14,19 +15,17 @@ func NewRESPConnection(conn *TCPConnection) *RESPConnection {
 	return &RESPConnection{conn: conn, parser: NewParser()}
 }
 
-func (rc *RESPConnection) NextRESP() (RESPValue, error) {
+func (rc *RESPConnection) NextRESP(ctx context.Context) (RESPValue, error) {
 	resp, err := rc.parser.ParseNext()
 	if err != nil && err != io.EOF {
 		return RESPValue{}, err
 	}
 
 	if err == io.EOF {
-		input, err := rc.conn.Read()
+		input, err := rc.conn.Read(ctx)
 		if err != nil {
 			return RESPValue{}, err
 		}
-
-		fmt.Printf("reading next input: %s\n", input)
 
 		resp, err = rc.parser.ParseInput(input)
 		if err != nil {
@@ -34,14 +33,11 @@ func (rc *RESPConnection) NextRESP() (RESPValue, error) {
 		}
 	}
 
-	asStr, _ := resp.ToString()
-	fmt.Printf("processing: %s\n", asStr)
-
 	return resp, nil
 }
 
-func (rc *RESPConnection) NextArgs() (ParseInfo, error) {
-	val, err := rc.NextRESP()
+func (rc *RESPConnection) NextArgs(ctx context.Context) (ParseInfo, error) {
+	val, err := rc.NextRESP(ctx)
 	if err != nil {
 		return ParseInfo{}, err
 	}

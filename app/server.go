@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -9,8 +10,7 @@ import (
 const ReplicationID = "8371b4fb1155b71f4a04d3e1bc3e18c4a990aeeb"
 
 func main() {
-	// You can use print statements as follows for debugging, they'll be visible when running tests.
-	fmt.Println("Logs from your program will appear here!")
+	fmt.Println("Redis Server Started")
 
 	port := flag.String("port", "6379", "port for redis server to use")
 	replicaOf := flag.String("replicaof", "", "port that this server is a replica of")
@@ -22,7 +22,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	err = rs.Run()
+	err = rs.Run(context.Background())
 	if err != nil {
 		fmt.Printf("failed to create redis server: %v\n", err)
 		os.Exit(1)

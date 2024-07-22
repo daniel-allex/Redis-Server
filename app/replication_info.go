@@ -8,7 +8,7 @@ import (
 type ReplicationInfo struct {
 	Role                       string
 	Port                       string
-	Replicants                 ConnectionList
+	Replicants                 Replicants
 	MasterPort                 string
 	MasterReplid               string
 	MasterReplOffset           int

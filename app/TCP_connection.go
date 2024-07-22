@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"net"
 )
 
@@ -40,7 +41,7 @@ func (conn *TCPConnection) ReadLine() (string, error) {
 	return conn.io.ReadString('\n')
 }
 
-func (conn *TCPConnection) Read() (string, error) {
+func (conn *TCPConnection) Read(ctx context.Context) (string, error) {
 	buf := make([]byte, 120000)
 	n, err := conn.io.Read(buf)
 
