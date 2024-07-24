@@ -14,9 +14,11 @@ func main() {
 
 	port := flag.String("port", "6379", "port for redis server to use")
 	replicaOf := flag.String("replicaof", "", "port that this server is a replica of")
+	dir := flag.String("dir", "./", "directory of RDB file")
+	dbfilename := flag.String("dbfilename", "./", "file name of RDB file")
 	flag.Parse()
 
-	rs, err := NewRedisServer(*port, *replicaOf)
+	rs, err := NewRedisServer(*port, *replicaOf, *dir, *dbfilename)
 	if err != nil {
 		fmt.Printf("failed to create redis server: %v\n", err)
 		os.Exit(1)

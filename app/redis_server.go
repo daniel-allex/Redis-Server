@@ -15,7 +15,7 @@ type RedisServer struct {
 	connectionBuffer Clients
 }
 
-func createServerInfo(port string, replicaOf string) ServerInfo {
+func createServerInfo(port string, replicaOf string, dir string, dbfilename string) ServerInfo {
 	role := "master"
 	masterPort := port
 	if replicaOf != "" {
@@ -23,8 +23,9 @@ func createServerInfo(port string, replicaOf string) ServerInfo {
 		_, masterPort, _ = strings.Cut(replicaOf, " ")
 	}
 
+	persistenceInfo := PersistenceInfo{Dir: dir, Dbfilename: dbfilename}
 	replicationInfo := ReplicationInfo{Role: role, Port: port, MasterPort: masterPort, MasterReplid: ReplicationID, MasterReplOffset: 0}
-	return ServerInfo{Replication: replicationInfo}
+	return ServerInfo{Persistence: persistenceInfo, Replication: replicationInfo}
 }
 
 func (rs *RedisServer) handleMaster(ctx context.Context, masterConn *MasterConnection) {
@@ -55,8 +56,8 @@ func (rs *RedisServer) handshake(ctx context.Context) error {
 	return nil
 }
 
-func NewRedisServer(port string, replicaOf string) (*RedisServer, error) {
-	rs := &RedisServer{Database: NewDatabase(), ServerInfo: createServerInfo(port, replicaOf), connectionBuffer: Clients{}}
+func NewRedisServer(port string, replicaOf string, dir string, dbfilename string) (*RedisServer, error) {
+	rs := &RedisServer{Database: NewDatabase(), ServerInfo: createServerInfo(port, replicaOf, dir, dbfilename), connectionBuffer: Clients{}}
 	return rs, nil
 }
 

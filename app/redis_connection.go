@@ -172,6 +172,35 @@ func (rc *RedisConnection) responseWAIT(ctx context.Context, parseInfo ParseInfo
 	return []RESPValue{{Type: Integer, Value: consistent}}
 }
 
+func (rc *RedisConnection) responseCONFIG(ctx context.Context, parseInfo ParseInfo) []RESPValue {
+	action, ok := parseInfo.Args[0].Value.(string)
+	if !ok {
+		return []RESPValue{{Type: SimpleError, Value: RESPError{Error: "ERR", Message: "failed to convert CONFIG arg 0 to string"}}}
+	}
+
+	if action != "GET" {
+		return []RESPValue{{Type: SimpleError, Value: RESPError{Error: "ERR", Message: "CONFIG arg must be GET"}}}
+	}
+
+	arg, ok := parseInfo.Args[1].Value.(string)
+	if !ok {
+		return []RESPValue{{Type: SimpleError, Value: RESPError{Error: "ERR", Message: "failed to convert CONFIG arg 1 to string"}}}
+	}
+
+	val := ""
+	if arg == "dir" {
+		val = rc.Server.ServerInfo.Persistence.Dir
+	} else if arg == "dbfilename" {
+		val = rc.Server.ServerInfo.Persistence.Dbfilename
+	} else {
+		return []RESPValue{{Type: SimpleError, Value: RESPError{Error: "ERR", Message: "Invalid CONFIG arg 2"}}}
+	}
+
+	res := RESPValue{Type: Array, Value: []RESPValue{{Type: BulkString, Value: arg}, {Type: BulkString, Value: val}}}
+
+	return []RESPValue{res}
+}
+
 func (rc *RedisConnection) ResponseFromArgs(ctx context.Context, parseInfo ParseInfo) []RESPValue {
 	switch parseInfo.Command {
 	case "PING":
@@ -190,6 +219,8 @@ func (rc *RedisConnection) ResponseFromArgs(ctx context.Context, parseInfo Parse
 		return rc.responsePSYNC(ctx, parseInfo)
 	case "WAIT":
 		return rc.responseWAIT(ctx, parseInfo)
+	case "CONFIG":
+		return rc.responseCONFIG(ctx, parseInfo)
 	}
 
 	return []RESPValue{{Type: SimpleError, Value: RESPError{Error: "ERR", Message: "command not found"}}}
