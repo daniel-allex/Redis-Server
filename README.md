@@ -1,4 +1,4 @@
-Redis Database implementation in Go, based on the Code Crafters Challenge.
+Redis Database implementation in Go
 - Supports handling concurrent connections to key-value store
 - Supports value expiry
 - Supports replication (replicants sync with master database to handle additional clients)
