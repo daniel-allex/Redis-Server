@@ -201,6 +201,21 @@ func (rc *RedisConnection) responseCONFIG(ctx context.Context, parseInfo ParseIn
 	return []RESPValue{res}
 }
 
+func typeFromVal(val RESPValue) string {
+	switch val.Type {
+	case NullBulkString:
+		return "none"
+	default:
+		return "string"
+	}
+}
+
+func (rc *RedisConnection) responseTYPE(ctx context.Context, parseInfo ParseInfo) []RESPValue {
+	key := parseInfo.Args[0].Value.(string)
+	val := rc.Server.GetValue(key)
+	return []RESPValue{{Type: SimpleString, Value: typeFromVal(val)}}
+}
+
 func (rc *RedisConnection) ResponseFromArgs(ctx context.Context, parseInfo ParseInfo) []RESPValue {
 	switch parseInfo.Command {
 	case "PING":
@@ -221,6 +236,8 @@ func (rc *RedisConnection) ResponseFromArgs(ctx context.Context, parseInfo Parse
 		return rc.responseWAIT(ctx, parseInfo)
 	case "CONFIG":
 		return rc.responseCONFIG(ctx, parseInfo)
+	case "TYPE":
+		return rc.responseTYPE(ctx, parseInfo)
 	}
 
 	return []RESPValue{{Type: SimpleError, Value: RESPError{Error: "ERR", Message: "command not found"}}}
