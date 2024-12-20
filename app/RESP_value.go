@@ -34,6 +34,7 @@ const (
 	Null
 	NullBulkString
 	RDBFile
+	Stream
 )
 
 func (listHeader *RESPListHeader) ToString() string {

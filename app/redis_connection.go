@@ -205,6 +205,8 @@ func typeFromVal(val RESPValue) string {
 	switch val.Type {
 	case NullBulkString:
 		return "none"
+	case Stream:
+		return "stream"
 	default:
 		return "string"
 	}
@@ -214,6 +216,33 @@ func (rc *RedisConnection) responseTYPE(ctx context.Context, parseInfo ParseInfo
 	key := parseInfo.Args[0].Value.(string)
 	val := rc.Server.GetValue(key)
 	return []RESPValue{{Type: SimpleString, Value: typeFromVal(val)}}
+}
+
+func (rc *RedisConnection) responseXADD(ctx context.Context, parseInfo ParseInfo) []RESPValue {
+	streamName := parseInfo.Args[0].Value.(string)
+	id := parseInfo.Args[1].Value.(string)
+	fields := []Pair{}
+
+	i := 2
+	for i+1 < len(parseInfo.Args) {
+		argName := parseInfo.Args[i].Value.(string)
+		argVal := parseInfo.Args[i+1].Value.(string)
+		fields = append(fields, Pair{Key: argName, Val: argVal})
+		i += 2
+	}
+
+	streamEntry := StreamEntry{Id: id, Fields: fields}
+
+	entries := []StreamEntry{}
+	existing := rc.Server.GetValue(streamName)
+	if existing.Type == Stream {
+		entries = existing.Value.(StreamLog).Entries
+	}
+
+	entries = append(entries, streamEntry)
+	rc.Server.SetValue(streamName, RESPValue{Type: Stream, Value: StreamLog{Name: streamName, Entries: entries}}, -1)
+
+	return []RESPValue{{Type: SimpleString, Value: id}}
 }
 
 func (rc *RedisConnection) ResponseFromArgs(ctx context.Context, parseInfo ParseInfo) []RESPValue {
@@ -238,6 +267,8 @@ func (rc *RedisConnection) ResponseFromArgs(ctx context.Context, parseInfo Parse
 		return rc.responseCONFIG(ctx, parseInfo)
 	case "TYPE":
 		return rc.responseTYPE(ctx, parseInfo)
+	case "XADD":
+		return rc.responseXADD(ctx, parseInfo)
 	}
 
 	return []RESPValue{{Type: SimpleError, Value: RESPError{Error: "ERR", Message: "command not found"}}}
